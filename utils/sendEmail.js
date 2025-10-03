@@ -1,0 +1,26 @@
+const nodemailer = require("nodemailer");
+
+const sendEmail = async (to, subject, text) => {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail", // ya custom SMTP: host, port, secure
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"Health Network" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      text,
+    });
+
+    console.log("✅ Email sent to:", to);
+  } catch (error) {
+    console.error("❌ Email error:", error);
+  }
+};
+
+module.exports = sendEmail;
