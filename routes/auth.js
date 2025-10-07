@@ -12,8 +12,10 @@ const adminMiddleware = require("../middleware/adminMiddleware"); // ✅ new mid
 const router = express.Router();
 
 // ===== Admin Credentials (from .env) =====
-const ADMIN_EMAIL = process.env.EMAIL_USER;
-const ADMIN_PASSWORD = process.env.EMAIL_PASS;
+// ✅ CORRECT
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+
 
 // ===== Register =====
 router.post("/register", async (req, res) => {
