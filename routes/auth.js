@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -6,8 +7,13 @@ const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
+const adminMiddleware = require("../middleware/adminMiddleware"); // ✅ new middleware
 
 const router = express.Router();
+
+// ===== Admin Credentials (from .env) =====
+const ADMIN_EMAIL = process.env.EMAIL_USER;
+const ADMIN_PASSWORD = process.env.EMAIL_PASS;
 
 // ===== Register =====
 router.post("/register", async (req, res) => {
@@ -19,7 +25,8 @@ router.post("/register", async (req, res) => {
     }
 
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ msg: "User already exists" });
+    if (existingUser)
+      return res.status(400).json({ msg: "User already exists" });
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -38,28 +45,45 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // ✅ Admin login using EMAIL_USER and EMAIL_PASS from .env
+    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+      const token = jwt.sign({ role: "admin" }, process.env.JWT_SECRET, {
+        expiresIn: "2h",
+      });
+
+      return res.json({
+        token,
+        user: {
+          role: "admin",
+          name: "Admin",
+          email: ADMIN_EMAIL,
+        },
+      });
+    }
+
+    // ✅ Normal user login
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ msg: "User does not exist" });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign(
+      { id: user._id, role: "user" },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1h",
+      }
+    );
 
-    // ✅ Check resumeUploaded (resume aur photo dono upload huwe?)
     const resumeUploaded = !!(user.resumeText && user.photo);
 
-    // ✅ Profile image logic
     let profileImage = "/images/default-avatar.png";
     if (user.photo) {
-      // agar base64 string hai
       if (user.photo.startsWith("/9j/") || user.photo.startsWith("iVBOR")) {
         const type = user.photo.startsWith("/9j/") ? "jpeg" : "png";
         profileImage = `data:image/${type};base64,${user.photo}`;
       } else {
-        // agar sirf filename hai (uploads folder me save hua hai)
         profileImage = `http://localhost:5000/uploads/${user.photo}`;
       }
     }
@@ -68,20 +92,17 @@ router.post("/login", async (req, res) => {
       token,
       user: {
         id: user._id,
+        role: "user",
         email: user.email,
         name: user.name,
         resumeUploaded,
-        profileImage, // 👈 ab safe hai
+        profileImage,
       },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-
-
-
-
 
 // ===== Forgot Password =====
 router.post("/forgot-password", async (req, res) => {
@@ -166,17 +187,18 @@ router.post(
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
         resumeFile.mimetype === "application/msword"
       ) {
-        const data = await mammoth.extractRawText({ buffer: resumeFile.buffer });
+        const data = await mammoth.extractRawText({
+          buffer: resumeFile.buffer,
+        });
         resumeText = data.value;
       }
 
-      // ✅ yahan resumeUploaded true kar diya
       const user = await User.findByIdAndUpdate(
         req.user.id,
         {
           resumeText,
           photo: photoFile.buffer.toString("base64"),
-          resumeUploaded: true,   // 👈 important line
+          resumeUploaded: true,
         },
         { new: true }
       ).select("-password");
@@ -188,7 +210,6 @@ router.post(
   }
 );
 
-
 // ===== Get Profile =====
 router.get("/profile", authMiddleware, async (req, res) => {
   try {
@@ -198,5 +219,27 @@ router.get("/profile", authMiddleware, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ===== Admin Dashboard =====
+router.get(
+  "/admin/dashboard",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const users = await User.find().select("name email resumeUploaded");
+      const totalUsers = users.length;
+      const uploadedResumes = users.filter((u) => u.resumeUploaded).length;
+
+      res.json({
+        totalUsers,
+        uploadedResumes,
+        users,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 module.exports = router;
