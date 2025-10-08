@@ -113,18 +113,18 @@ router.get("/users/:id", authMiddleware, async (req, res) => {
   }
 });
 
-router.get("/admin/user/:id", authMiddleware, async (req, res) => {
+// ✅ Get single user by ID (for admin)
+router.get("/api/users/getUser/:id", authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select("-password");
-    if (!user) {
-      return res.status(404).json({ msg: "User not found" });
-    }
-    res.json(user);
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ msg: "User not found" });
+    res.json({ user });
   } catch (err) {
-    console.error(err.message);
+    console.error(err);
     res.status(500).json({ msg: "Server error" });
   }
 });
+
 
 module.exports = router;
 
