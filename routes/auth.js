@@ -104,7 +104,7 @@ router.post("/login", async (req, res) => {
 // GET /api/auth/users/:id
 router.get("/users/:id", authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findById(req.params.id).select("-password");
     if (!user) return res.status(404).json({ msg: "User not found" });
 
     res.json({ user });
@@ -113,20 +113,7 @@ router.get("/users/:id", authMiddleware, async (req, res) => {
   }
 });
 
-// ✅ Get single user by ID (for admin)
-router.get("/api/users/getUser/:id", authMiddleware, async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ msg: "User not found" });
-    res.json({ user });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: "Server error" });
-  }
-});
 
-
-module.exports = router;
 
 // ===== Forgot Password =====
 router.post("/forgot-password", async (req, res) => {
@@ -264,20 +251,43 @@ router.delete(
     }
   }
 );
-// Get single user by ID (Admin)
-router.get("/users/:id", authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id).select("-password");
-    if (!user) return res.status(404).json({ msg: "User not found" });
-    res.json({ user });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+
+// ===== Admin View User Profile =====
+router.get(
+  "/admin/user/:id",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const user = await User.findById(req.params.id).select("-password");
+      if (!user) return res.status(404).json({ msg: "User not found" });
+
+      let profileImage = "/images/default-avatar.png";
+      if (user.photo) {
+        if (user.photo.startsWith("/9j/") || user.photo.startsWith("iVBOR")) {
+          const type = user.photo.startsWith("/9j/") ? "jpeg" : "png";
+          profileImage = `data:image/${type};base64,${user.photo}`;
+        } else {
+          profileImage = `http://localhost:5000/uploads/${user.photo}`;
+        }
+      }
+
+      res.json({
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          resumeUploaded: !!user.resumeUploaded,
+          resumeText: user.resumeText,
+          profileImage,
+        },
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   }
-});
-
-
-
-
+);
 
 
 // ===== Admin Dashboard =====
