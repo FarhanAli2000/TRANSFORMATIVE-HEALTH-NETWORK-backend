@@ -7,24 +7,21 @@ const pdfParse = require("pdf-parse");
 const mammoth = require("mammoth");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
-const adminMiddleware = require("../middleware/adminMiddleware"); // ✅ new middleware
+const adminMiddleware = require("../middleware/adminMiddleware");
 
 const router = express.Router();
 
-// ===== Admin Credentials (from .env) =====
-// ✅ CORRECT
+// ===== Admin Credentials from .env =====
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-
 
 // ===== Register =====
 router.post("/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password)
       return res.status(400).json({ msg: "All fields are required" });
-    }
 
     const existingUser = await User.findOne({ email });
     if (existingUser)
@@ -47,7 +44,7 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // ✅ Admin login using EMAIL_USER and EMAIL_PASS from .env
+    // ✅ Admin login
     if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
       const token = jwt.sign({ role: "admin" }, process.env.JWT_SECRET, {
         expiresIn: "2h",
@@ -73,9 +70,7 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign(
       { id: user._id, role: "user" },
       process.env.JWT_SECRET,
-      {
-        expiresIn: "1h",
-      }
+      { expiresIn: "1h" }
     );
 
     const resumeUploaded = !!(user.resumeText && user.photo);
@@ -189,9 +184,7 @@ router.post(
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
         resumeFile.mimetype === "application/msword"
       ) {
-        const data = await mammoth.extractRawText({
-          buffer: resumeFile.buffer,
-        });
+        const data = await mammoth.extractRawText({ buffer: resumeFile.buffer });
         resumeText = data.value;
       }
 
@@ -222,26 +215,56 @@ router.get("/profile", authMiddleware, async (req, res) => {
   }
 });
 
-// ===== Admin Dashboard =====
-router.get(
-  "/admin/dashboard",
+// ===== Delete User =====
+router.delete(
+  "/admin/user/:id",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-      const users = await User.find().select("name email resumeUploaded");
-      const totalUsers = users.length;
-      const uploadedResumes = users.filter((u) => u.resumeUploaded).length;
+      const userId = req.params.id;
 
-      res.json({
-        totalUsers,
-        uploadedResumes,
-        users,
-      });
+      const user = await User.findById(userId);
+      if (!user) return res.status(404).json({ msg: "User not found" });
+
+      await User.findByIdAndDelete(userId);
+
+      res.json({ msg: "User deleted successfully" });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
   }
 );
+// Get single user by ID (Admin)
+router.get("/users/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user) return res.status(404).json({ msg: "User not found" });
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
+
+
+// ===== Admin Dashboard =====
+router.get("/admin/dashboard", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const users = await User.find().select("name email resumeUploaded photo");
+
+    res.json({
+      msg: "Admin access granted",
+      totalUsers: users.length,
+      uploadedResumes: users.filter((u) => u.resumeUploaded).length,
+      users,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;

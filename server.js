@@ -5,6 +5,7 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const authRoutes = require("./routes/auth"); // Your routes
 
+
 dotenv.config();
 const app = express();
 
@@ -19,6 +20,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 // Routes
 app.use("/api/auth", authRoutes);
+
 
 // Health check route
 app.get("/", (req, res) => {
