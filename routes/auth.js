@@ -101,6 +101,21 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// GET /api/auth/users/:id
+router.get("/admin/user/:id", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error("Error fetching user:", err.message);
+    res.status(500).json({ msg: "Server error" });
+  }
+});
+
+
 // ===== Forgot Password =====
 router.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
